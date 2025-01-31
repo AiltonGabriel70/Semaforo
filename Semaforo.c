@@ -1,6 +1,6 @@
+#include <stdio.h>
 #include "pico/stdlib.h"
-#include "hardware/timer.h"
-#include <stdio.h>  // Necessário para printf
+#include "hardware/uart.h"
 
 // Definição dos pinos para os LEDs
 #define LED_VERMELHO_PIN 11
@@ -15,6 +15,7 @@ typedef enum {
 } estado_semaforo_t;
 
 estado_semaforo_t estado_atual = VERMELHO; // Começamos com o semáforo vermelho
+estado_semaforo_t estado_anterior = VERMELHO; // Estado anterior (inicialmente o mesmo que o atual)
 
 // Função de callback do temporizador
 bool repeating_timer_callback(struct repeating_timer *t) {
@@ -49,8 +50,10 @@ int main() {
     gpio_init(LED_VERDE_PIN);
     gpio_set_dir(LED_VERDE_PIN, GPIO_OUT);
 
-    // Inicializa a comunicação serial
-    stdio_init_all();  // Inicializa a UART para a comunicação serial
+    // Inicializa a UART (configuração manual)
+    uart_init(uart0, 115200);  // Configura a UART0 com baud rate de 115200
+    gpio_set_function(0, GPIO_FUNC_UART);  // RX na GPIO 0
+    gpio_set_function(1, GPIO_FUNC_UART);  // TX na GPIO 1
 
     // Aguarda 2 segundos para estabilizar a comunicação serial
     sleep_ms(2000);
@@ -65,20 +68,23 @@ int main() {
     add_repeating_timer_ms(3000, repeating_timer_callback, NULL, &timer);
 
     while (true) {
-        // Aguarda 1 segundo e imprime a mensagem correspondente ao estado
+        // Aguarda 1 segundo
         sleep_ms(1000);
 
-        // Imprime a mensagem de acordo com o estado do semáforo
-        switch (estado_atual) {
-            case VERMELHO:
-                printf("PARE\n");  // Mensagem para o semáforo vermelho
-                break;
-            case AMARELO:
-                printf("ATENÇÃO\n");  // Mensagem para o semáforo amarelo
-                break;
-            case VERDE:
-                printf("SIGA\n");  // Mensagem para o semáforo verde
-                break;
+        // Verifica se houve mudança de estado e imprime a mensagem correspondente
+        if (estado_atual != estado_anterior) {
+            switch (estado_atual) {
+                case VERMELHO:
+                    uart_puts(uart0, "PARE\n");  // Mensagem para o semáforo vermelho
+                    break;
+                case AMARELO:
+                    uart_puts(uart0, "ATENÇÃO\n");  // Mensagem para o semáforo amarelo
+                    break;
+                case VERDE:
+                    uart_puts(uart0, "SIGA\n");  // Mensagem para o semáforo verde
+                    break;
+            }
+            estado_anterior = estado_atual;  // Atualiza o estado anterior
         }
     }
 
